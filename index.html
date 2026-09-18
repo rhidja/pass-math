@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Cours, quiz et examens blancs pour préparer AWS Certified Cloud Practitioner CLF-C02">
+  <title>AWS Ready | CLF-C02</title><link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header><a class="brand" href="."><b>AWS</b><span><strong>AWS Ready</strong><small>CLF-C02 · FR</small></span></a><button id="reset">Réinitialiser</button></header>
+<main>
+  <section class="hero">
+    <label>PARCOURS DE PRÉPARATION</label>
+    <h1>Apprendre.<br><i>Répondre. Progresser.</i></h1>
+    <p>Des cours structurés selon les 4 domaines officiels, une banque de questions commentées et des examens blancs chronométrés.</p>
+    <span class="exam"><em></em><strong>CLF-C02</strong> · 65 questions · 90 minutes · score de réussite 700/1000</span>
+  </section>
+
+  <nav class="tabs">
+    <button class="tab active" data-view="courses">Cours</button>
+    <button class="tab" data-view="quiz">Entraînement</button>
+    <button class="tab" data-view="exam">Examen blanc</button>
+    <button class="tab" data-view="progress">Progression</button>
+  </nav>
+
+  <section id="courses-view" class="view">
+    <div class="section-title"><div><label>LES 4 DOMAINES DE L’EXAMEN</label><h2>Construis une base solide.</h2></div><span id="course-count"></span></div>
+    <div id="course-list"></div>
+  </section>
+
+  <section id="quiz-view" class="view hidden">
+    <div class="stats">
+      <div><small>Répondues</small><strong id="answered">0</strong><span>questions différentes</span></div>
+      <div><small>Précision</small><strong id="accuracy">--</strong><span>dernière réponse par question</span></div>
+      <div class="lime"><small>Série actuelle</small><strong id="streak">0</strong><span>bonne(s) réponse(s)</span></div>
+    </div>
+    <div class="quiz-layout">
+      <aside>
+        <h3>Filtres <span id="total"></span></h3>
+        <div id="categories"></div>
+        <p class="tip"><b>i</b><span><strong>Conseil</strong><br>Lis l’explication même quand ta réponse est correcte. Les questions ratées vont dans « Erreurs à revoir ».</span></p>
+      </aside>
+      <article class="quiz-card" id="quiz-card"></article>
+    </div>
+  </section>
+
+  <section id="exam-view" class="view hidden">
+    <div id="exam-root"></div>
+  </section>
+
+  <section id="progress-view" class="view hidden">
+    <div class="section-title"><div><label>TABLEAU DE BORD</label><h2>Où en es-tu ?</h2></div></div>
+    <div id="progress-root"></div>
+  </section>
+</main>
+<script src="data/domains.js"></script>
+<script src="data/courses.js"></script>
+<script src="data/questions.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
