@@ -331,3 +331,8 @@ tr:last-child td { border-bottom: 0; }
 .katex { font-size: 1.08em; }
 .question h2 .katex { font-size: 1em; }
 .katex-display { overflow-x: auto; overflow-y: hidden; }
+
+/* En-tête : bouton d’installation de l’application (PWA) */
+.header-actions { display: flex; align-items: center; gap: 14px; }
+header .install { padding: 7px 12px; border-radius: 99px; color: #fff; background: var(--primary); font-weight: 700; }
+header .install:hover { color: #fff; background: var(--primary-dark); }

@@ -5,13 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Cours, QCM corrigés et examens blancs en mathématiques et biostatistiques pour le PASS Médecine">
   <title>PASS Médecine | Maths &amp; Biostatistiques</title>
+  <meta name="theme-color" content="#1b6ec2">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="PASS Biostats">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <!-- Manifeste lié seulement en http(s) : en file://, Chrome le refuse (CORS) et l'installation est impossible. -->
+  <script>if (location.protocol !== 'file:') document.head.insertAdjacentHTML('beforeend', '<link rel="manifest" href="manifest.webmanifest">');</script>
   <link rel="stylesheet" href="vendor/katex/katex.min.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header>
   <a class="brand" href="."><b>Σ</b><span><strong>PASS Maths &amp; Biostats</strong><small>PASS Médecine · FR</small></span></a>
-  <button id="reset" type="button">Réinitialiser</button>
+  <div class="header-actions">
+    <button id="install" class="install" type="button" hidden>Installer l’app</button>
+    <button id="reset" type="button">Réinitialiser</button>
+  </div>
 </header>
 <main>
   <section class="hero">

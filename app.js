@@ -570,6 +570,26 @@ $('#reset').onclick = () => {
   showView($('.tab.active').dataset.view);
 };
 
+// ── Application installable (PWA) ────────────────────────────────────────────
+// Le service worker exige http(s) : en file://, l'application reste utilisable sans lui.
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => { /* hors ligne indisponible */ }));
+}
+let installPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  installPrompt = e;
+  $('#install').hidden = false;
+});
+window.addEventListener('appinstalled', () => { installPrompt = null; $('#install').hidden = true; });
+$('#install').onclick = async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice;
+  installPrompt = null;
+  $('#install').hidden = true;
+};
+
 $('#exam-summary').textContent = `${examSize} QCM · ${EXAM_MINUTES} minutes · note sur 20`;
 renderProgramme();
 setFilter('all');

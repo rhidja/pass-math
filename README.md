@@ -14,6 +14,24 @@ Ouvrir `index.html` dans un navigateur (double-clic, fonctionne en `file://` et 
 
 > Le format de l’examen blanc est une **simulation interne**. Le nombre de questions, la durée et le barème réels dépendent de la faculté : se référer à ses modalités officielles.
 
+## Application installable (PWA)
+
+Servie en **https** (ou sur `localhost`), l’application s’installe comme une application native et fonctionne **hors ligne** :
+
+- **Android (Chrome)** : bouton « Installer l’app » dans l’en-tête, ou menu ⋮ → « Installer l’application ».
+- **iPhone / iPad (Safari)** : bouton Partager → « Sur l’écran d’accueil ».
+- **Ordinateur (Chrome, Edge)** : bouton « Installer l’app » ou icône d’installation dans la barre d’adresse.
+
+Pour la publier, il suffit de déposer le dossier sur un hébergement statique en https (GitHub Pages, Netlify, Cloudflare Pages…). Pour tester en local :
+
+```sh
+python3 -m http.server 8000   # puis ouvrir http://localhost:8000
+```
+
+En `file://` (double-clic), l’application fonctionne normalement mais n’est pas installable : les navigateurs réservent le service worker à http(s).
+
+Fichiers concernés : `manifest.webmanifest` (nom, couleurs, icônes), `sw.js` (cache hors ligne) et `icons/`. Le service worker charge les fichiers depuis le réseau quand c’est possible, donc une modification du contenu est visible au prochain chargement en ligne. Si l’on **ajoute ou supprime un fichier**, il faut mettre à jour la liste `ASSETS` de `sw.js` et incrémenter `CACHE` (`pass-maths-biostats-v2`…).
+
 ## Domaines
 
 | Domaine | Poids | Cours | Questions | À l’examen blanc |

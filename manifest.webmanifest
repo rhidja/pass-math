@@ -1,0 +1,20 @@
+{
+  "name": "PASS Médecine — Mathématiques & Biostatistiques",
+  "short_name": "PASS Biostats",
+  "description": "Cours, QCM corrigés et examens blancs en mathématiques et biostatistiques pour le PASS Médecine.",
+  "lang": "fr",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f3f7fb",
+  "theme_color": "#1b6ec2",
+  "categories": ["education", "medical"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
