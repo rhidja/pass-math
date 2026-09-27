@@ -21,17 +21,37 @@ Crée dans ce dossier une application web d'apprentissage selon le cahier des ch
 
 ## Paramètres
 
-- **Sujet** : [ex. Microsoft Azure Fundamentals]
-- **Examen ou objectif visé** : [ex. certification AZ-900 ; ou « aucun examen », pour un simple apprentissage]
-- **Nom de l'application** : [ex. Azure Ready]
-- **Langue du contenu et de l'interface** : [ex. français]
-- **Public** : [ex. débutant sans expérience du cloud]
-- **Domaines et pondération** : [ex. 1. Concepts du cloud 25 % ; 2. Architecture et services 35 % ; 3. Gestion et gouvernance 30 %… ou vide]
-- **Format de l'examen réel** : [ex. 45 questions, 60 minutes, réussite à 700/1000 ; ou vide si pas d'examen]
-- **Volume visé** : [ex. 12 à 15 cours, 150 questions minimum]
-- **Couleur principale** : [ex. bleu Azure ; ou vide pour laisser l'IA choisir]
-- **Programme détaillé** : [« voir la section Programme détaillé » ; ou nom du fichier dans le dossier, ex. `programme.pdf` ; ou « aucun »]
-- **Respect du programme** : [« strict » : rien en dehors du programme ; ou « compléments autorisés » : notions utiles hors programme, signalées comme telles]
+* **Sujet** : Mathématiques et Biostatistiques — Programme PASS Médecine
+
+* **Examen ou objectif visé** : Réussir le PASS Médecine, avec une préparation spécifique à l'UE de Mathématiques/Biostatistiques et aux QCM de type examen/concours PASS.
+
+* **Nom de l'application** : PASS Médecine — Mathématiques & Biostatistiques
+
+* **Langue du contenu et de l'interface** : français
+
+* **Public** : Étudiante en PASS Médecine, avec un niveau de mathématiques adapté à son niveau scolaire et une progression vers le niveau exigé en PASS.
+
+* **Domaines et pondération** :
+
+  1. Bases mathématiques et calculs — 15 %
+  2. Fonctions, exponentielles et logarithmes — 10 %
+  3. Biomathématiques et modélisation — 10 %
+  4. Probabilités — 20 %
+  5. Variables aléatoires et lois de probabilité — 10 %
+  6. Statistiques descriptives — 10 %
+  7. Biostatistiques médicales — 15 %
+  8. Estimation, intervalles de confiance et tests statistiques — 10 %
+
+* **Format de l'examen réel** : QCM, selon les modalités et le programme de l'université de PASS concernée. Ne jamais inventer le nombre de questions, la durée ou le barème : utiliser uniquement les informations officielles de l'université lorsqu'elles sont disponibles.
+
+* **Volume visé** : 25 à 35 cours progressifs + au minimum 300 QCM/exercices corrigés. Prévoir des séries d'entraînement par chapitre, des examens blancs chronométrés et des révisions cumulatives.
+
+* **Couleur principale** : bleu médical / bleu clair, avec une interface sobre, claire et adaptée aux études de médecine.
+
+* **Programme détaillé** : voir la section « Programme détaillé ».
+
+* **Respect du programme** : strict. Ne pas introduire de notions hors programme comme si elles étaient exigées au PASS. Les compléments éventuellement utiles doivent être clairement signalés comme « complément ».
+
 
 ## Avant de coder
 
@@ -240,15 +260,82 @@ Navigation par onglets : **Programme**, **Cours**, **Entraînement**, **Examen b
 *(Colle ton programme ci-dessous, ou écris « voir fichier » si tu l'as déposé dans le dossier. Laisse vide si tu n'en as pas. Format conseillé, mais un copier-coller brut du programme officiel fonctionne aussi :)*
 
 ```
-Domaine 1 : [Nom] ([pondération] %)
-  1.1 [Intitulé de l'objectif]
-      - [notion]
-      - [notion]
-  1.2 [Intitulé de l'objectif]
-      - [notion]
-Domaine 2 : [Nom] ([pondération] %)
-  2.1 [Intitulé de l'objectif]
-      - [notion]
+Chapitre 1 — Bases mathématiques
+
+Fractions et pourcentages
+Puissances
+Racines
+Équations
+Proportions
+Conversions
+Notation scientifique
+
+Chapitre 2 — Fonctions et exponentielles
+
+Fonctions
+Variations
+Exponentielle
+Logarithme
+Applications biomédicales
+
+Chapitre 3 — Biomathématiques
+
+Modélisation
+Croissance/décroissance
+Équations différentielles simples
+Modèles exponentiels
+Applications biologiques
+
+Chapitre 4 — Probabilités
+
+Événements
+Probabilité conditionnelle
+Indépendance
+Arbres
+Formule de Bayes
+
+Chapitre 5 — Variables aléatoires
+
+Espérance
+Variance
+Écart-type
+Loi binomiale
+Loi normale
+
+Chapitre 6 — Statistiques
+
+Moyenne
+Médiane
+Variance
+Écart-type
+Quartiles
+Représentations graphiques
+
+Chapitre 7 — Biostatistiques médicales
+
+Prévalence
+Incidence
+Sensibilité
+Spécificité
+Valeur prédictive positive
+Valeur prédictive négative
+Risque relatif
+Odds ratio
+
+Chapitre 8 — Estimation
+
+Échantillonnage
+Estimation d'une proportion
+Intervalle de confiance
+Marge d'erreur
+
+Chapitre 9 — Tests statistiques
+
+\(H_0\) et \(H_1\)
+p-value
+Seuil de significativité
+Erreurs de type I et II
+Interprétation des résultats
 ```
 
 =====

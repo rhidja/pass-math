@@ -1,15 +1,24 @@
-const STORE_KEY = 'aws-ready-v2';
-const EXAM_MINUTES = 90;
-const PASS_SCORE = 700;
+const STORE_KEY = 'pass-maths-biostats-v1';
+const EXAM_MINUTES = 60;
+const PASS_MARK = 10; // seuil indicatif, note sur 20
+const MASTERY_MIN = 3; // questions minimum pour qu'un objectif soit « Maîtrisé »
+const MASTERY_RATE = 0.8;
 
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+// Les polices web placent mal la barre de combinaison (M̄, B̄, x̄) : on la remplace par un surlignement CSS.
+const bars = html => html.replace(/(\p{L})\u0304/gu, '<span class="overbar">$1</span>');
+const txt = s => bars(esc(s));
 const pad = n => String(n).padStart(2, '0');
 const letter = i => String.fromCharCode(65 + i);
+const pct = (ok, total) => total ? Math.round(ok / total * 100) : 0;
 const domainOf = id => DOMAINS.find(d => d.id === id);
+const objectiveOf = id => OBJECTIVES.find(o => o.id === id);
+const coursesFor = objId => COURSES.map((c, i) => ({ c, i })).filter(x => x.c.o.includes(objId));
+const examSize = DOMAINS.reduce((n, d) => n + d.examCount, 0);
 
-// Identifiant stable dérivé de l'énoncé : ajouter des questions ne casse pas la progression enregistrée.
+// Identifiant stable dérivé de l'énoncé : ajouter ou réordonner des questions ne casse pas la progression.
 function hash(text) {
   let h = 5381;
   for (const ch of text) h = ((h << 5) + h + ch.codePointAt(0)) | 0;
@@ -33,7 +42,9 @@ const answerOrder = q => shuffle(q.a.map((_, i) => i));
 const isRight = (q, picked) => picked.length === q.correct.length && q.correct.every(i => picked.includes(i));
 
 // ── Stockage local ───────────────────────────────────────────────────────────
-function emptyStore() { return { answers: {}, read: {}, exams: [] }; }
+// answers : id de question → dernier résultat ; read : titre de cours → lu ;
+// mastered : objectif → case « Je maîtrise » cochée ; exams : 20 derniers examens.
+function emptyStore() { return { answers: {}, read: {}, mastered: {}, exams: [] }; }
 function loadStore() {
   try { return { ...emptyStore(), ...JSON.parse(localStorage.getItem(STORE_KEY) || '{}') }; }
   catch { return emptyStore(); }
@@ -42,28 +53,105 @@ let store = loadStore();
 function save() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch { /* stockage indisponible */ }
 }
+const isRead = i => !!store.read[COURSES[i].title];
+const readCount = () => COURSES.filter((_, i) => isRead(i)).length;
+
+// ── État d'un objectif ───────────────────────────────────────────────────────
+function objectiveStats(id) {
+  const qs = QUESTIONS.filter(q => q.o === id);
+  const results = qs.map(q => store.answers[q.id]).filter(r => r !== undefined);
+  const ok = results.filter(Boolean).length;
+  const computed = results.length >= MASTERY_MIN && ok / results.length >= MASTERY_RATE;
+  const started = results.length > 0 || coursesFor(id).some(x => isRead(x.i));
+  const status = computed || store.mastered[id] ? 'mastered' : started ? 'started' : 'new';
+  return { pool: qs.length, seen: results.length, ok, status };
+}
+const STATUS_LABEL = { new: 'À découvrir', started: 'En cours', mastered: 'Maîtrisé' };
 
 // ── Navigation ───────────────────────────────────────────────────────────────
 function showView(name) {
   $$('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === name));
   $$('.view').forEach(v => v.classList.toggle('hidden', v.id !== `${name}-view`));
-  if (name === 'progress') renderProgress();
+  if (name === 'programme') renderProgramme();
   if (name === 'courses') renderCourses();
+  if (name === 'progress') renderProgress();
 }
 $$('.tab').forEach(t => t.onclick = () => showView(t.dataset.view));
 
+function goToCourse(i) {
+  showView('courses');
+  openCourse(i);
+}
+function goToPractice(filter) {
+  setFilter(filter);
+  showView('quiz');
+  $('#quiz-view').scrollIntoView({ behavior: 'smooth' });
+}
+// Délégation : liens vers un cours ou vers un entraînement filtré, où qu'ils soient.
+document.addEventListener('click', e => {
+  const course = e.target.closest('[data-open-course]');
+  if (course) return goToCourse(+course.dataset.openCourse);
+  const train = e.target.closest('[data-train]');
+  if (train) return goToPractice(train.dataset.train);
+});
+
+// ── Programme ────────────────────────────────────────────────────────────────
+function renderProgramme() {
+  const mastered = OBJECTIVES.filter(o => objectiveStats(o.id).status === 'mastered').length;
+  $('#programme-root').innerHTML = `
+    <div class="global-progress">
+      <div><strong>${mastered} / ${OBJECTIVES.length}</strong> objectifs maîtrisés</div>
+      <div class="bar good"><i style="width:${pct(mastered, OBJECTIVES.length)}%"></i></div>
+      <small>« Maîtrisé » : au moins ${MASTERY_RATE * 100} % de bonnes réponses sur au moins ${MASTERY_MIN} questions, ou case « Je maîtrise » cochée.</small>
+    </div>
+    ${DOMAINS.map(d => `<div class="domain-block">
+      <div class="domain-head"><span>DOMAINE ${d.id}</span><h3>${esc(d.name)}</h3><small>${d.weight} % du programme</small></div>
+      <div class="objectives">${OBJECTIVES.filter(o => o.d === d.id).map(objectiveHtml).join('')}</div>
+    </div>`).join('')}`;
+  $$('[data-master]').forEach(box => box.onchange = () => {
+    if (box.checked) store.mastered[box.dataset.master] = true;
+    else delete store.mastered[box.dataset.master];
+    save();
+    renderProgramme();
+  });
+}
+
+function objectiveHtml(o) {
+  const s = objectiveStats(o.id);
+  return `<article class="objective">
+    <div class="objective-head">
+      <span class="obj-id">${esc(o.id)}</span>
+      <h4>${esc(o.title)}</h4>
+      <span class="pill ${s.status}">${STATUS_LABEL[s.status]}</span>
+    </div>
+    <ul class="notions">${o.notions.map(n => `<li>${txt(n)}</li>`).join('')}</ul>
+    <div class="objective-foot">
+      <span class="modules">Cours : ${coursesFor(o.id).map(({ c, i }) =>
+        `<button class="link" type="button" data-open-course="${i}">${pad(i + 1)}. ${esc(c.title)}</button>`).join(' ')}</span>
+      <span class="obj-stats">${s.seen ? `${pct(s.ok, s.seen)} % de réussite` : 'Pas encore de réponse'} · ${s.seen}/${s.pool} questions vues</span>
+      <label class="check"><input type="checkbox" data-master="${esc(o.id)}" ${store.mastered[o.id] ? 'checked' : ''}> Je maîtrise</label>
+      <button class="ghost small" type="button" data-train="o:${esc(o.id)}">S’entraîner</button>
+    </div>
+  </article>`;
+}
+
 // ── Cours ────────────────────────────────────────────────────────────────────
+function renderCourseCount() {
+  $('#course-count').textContent = `${COURSES.length} modules · ${readCount()} lu(s)`;
+}
+
 function renderCourses() {
-  $('#course-count').textContent = `${COURSES.length} modules · ${Object.keys(store.read).length} lu(s)`;
+  renderCourseCount();
   $('#course-list').innerHTML = DOMAINS.map(d => {
     const items = COURSES.map((c, i) => ({ c, i })).filter(x => x.c.d === d.id);
     return `<div class="domain-block">
-      <div class="domain-head"><span>DOMAINE ${d.id}</span><h3>${d.name}</h3><small>${d.weight} % de l’examen</small></div>
+      <div class="domain-head"><span>DOMAINE ${d.id}</span><h3>${esc(d.name)}</h3><small>${d.weight} % du programme</small></div>
       <div class="course-grid">${items.map(({ c, i }) => `
-        <article class="course ${store.read[i] ? 'read' : ''}">
-          <span class="index">${pad(i + 1)}${store.read[i] ? ' · LU ✓' : ''}</span>
-          <h3>${c.title}</h3><p>${c.summary}</p>
-          <button data-course="${i}">Lire le cours →</button>
+        <article class="course ${isRead(i) ? 'read' : ''}">
+          <span class="index">${pad(i + 1)}${isRead(i) ? ' <em class="badge-read">LU ✓</em>' : ''}</span>
+          <h3>${bars(c.title)}</h3><p>${bars(c.summary)}</p>
+          <span class="objs">${c.o.join(' · ')}</span>
+          <button type="button" data-course="${i}">Lire le cours →</button>
         </article>`).join('')}
       </div>
     </div>`;
@@ -73,39 +161,44 @@ function renderCourses() {
 
 function openCourse(i) {
   const c = COURSES[i];
-  store.read[i] = true;
+  store.read[c.title] = true;
   save();
+  renderCourseCount();
   const next = COURSES[i + 1];
-  $('#course-count').textContent = `${COURSES.length} modules · ${Object.keys(store.read).length} lu(s)`;
   $('#course-list').innerHTML = `<article class="lesson">
-    <span class="index">${pad(i + 1)} / DOMAINE ${c.d} · ${domainOf(c.d).name.toUpperCase()}</span>
-    <h3>${c.title}</h3>
-    <p class="lead">${c.summary}</p>
-    ${c.sections.map(s => `<section>
-      <h4>${s.h}</h4>
-      ${s.p ? `<p>${s.p}</p>` : ''}
-      ${s.points ? `<ul>${s.points.map(p => `<li>${p}</li>`).join('')}</ul>` : ''}
+    <span class="index">${pad(i + 1)} / DOMAINE ${c.d} · ${esc(domainOf(c.d).name.toUpperCase())}</span>
+    <h3>${bars(c.title)}</h3>
+    <p class="lead">${bars(c.summary)}</p>
+    <div class="covers"><strong>Objectifs du programme couverts</strong>
+      <ul>${c.o.map(id => `<li><b>${esc(id)}</b> ${esc(objectiveOf(id).title)}</li>`).join('')}</ul></div>
+    ${c.sections.map(s => `<section class="${s.extra ? 'extra' : ''}">
+      <h4>${bars(s.h)}${s.extra ? ' <span class="tag">Complément · hors programme</span>' : ''}</h4>
+      ${s.p ? `<p>${bars(s.p)}</p>` : ''}
+      ${s.points ? `<ul>${s.points.map(p => `<li>${bars(p)}</li>`).join('')}</ul>` : ''}
     </section>`).join('')}
     <div class="lesson-nav">
-      <button class="back">← Tous les cours</button>
-      <button class="ghost" data-practice="${c.d}">S’entraîner sur ce domaine</button>
-      ${next ? `<button class="next" data-course="${i + 1}">Module suivant : ${next.title} →</button>` : ''}
+      <button class="back" type="button">← Tous les cours</button>
+      <button class="ghost" type="button" data-train="o:${c.o.join(',')}">S’entraîner sur ces objectifs</button>
+      ${next ? `<button class="next" type="button" data-course="${i + 1}">Module suivant : ${next.title} →</button>` : ''}
     </div>
   </article>`;
-  $('.back').onclick = renderCourses;
+  $('.lesson .back').onclick = renderCourses;
   $$('.lesson [data-course]').forEach(b => b.onclick = () => openCourse(+b.dataset.course));
-  $('[data-practice]').onclick = () => { setFilter(c.d); showView('quiz'); };
   $('#courses-view').scrollIntoView({ behavior: 'smooth' });
 }
 
 // ── Entraînement ─────────────────────────────────────────────────────────────
+// Filtres : 'all', 'new', 'review', 'd:<domaine>' ou 'o:<objectif>[,<objectif>…]'.
 const practice = { filter: 'all', list: [], index: 0, streak: 0, picked: [], session: {}, orders: {} };
 
 function filteredQuestions(filter) {
   if (filter === 'all') return QUESTIONS;
   if (filter === 'review') return QUESTIONS.filter(q => store.answers[q.id] === false);
   if (filter === 'new') return QUESTIONS.filter(q => store.answers[q.id] === undefined);
-  return QUESTIONS.filter(q => q.d === filter);
+  const [kind, value] = filter.split(':');
+  if (kind === 'd') return QUESTIONS.filter(q => q.d === +value);
+  const ids = value.split(',');
+  return QUESTIONS.filter(q => ids.includes(q.o));
 }
 
 function setFilter(filter) {
@@ -119,22 +212,26 @@ function renderFilters() {
     ['all', 'Toutes les questions'],
     ['new', 'Jamais répondues'],
     ['review', 'Erreurs à revoir'],
-    ...DOMAINS.map(d => [d.id, `${d.id}. ${d.name}`])
+    ...DOMAINS.map(d => [`d:${d.id}`, `${d.id}. ${d.name}`])
   ];
   $('#total').textContent = QUESTIONS.length;
+  const objFilter = practice.filter.startsWith('o:') ? practice.filter.slice(2).split(',') : null;
+  $('#active-filter').innerHTML = objFilter ? `<div class="active-filter">
+      <span>Objectif${objFilter.length > 1 ? 's' : ''} ${objFilter.map(esc).join(' · ')}
+        <small>${filteredQuestions(practice.filter).length} questions</small></span>
+      <button type="button" id="clear-filter" aria-label="Retirer le filtre">✕</button>
+    </div>` : '';
+  if (objFilter) $('#clear-filter').onclick = () => setFilter('all');
   $('#categories').innerHTML = entries.map(([key, label]) =>
-    `<button class="category ${key === practice.filter ? 'active' : ''} ${key === 'review' ? 'review' : ''}" data-filter="${key}">${label}<span>${filteredQuestions(key).length}</span></button>`
+    `<button type="button" class="category ${key === practice.filter ? 'active' : ''} ${key === 'review' ? 'review' : ''}" data-filter="${key}">${esc(label)}<span>${filteredQuestions(key).length}</span></button>`
   ).join('');
-  $$('[data-filter]').forEach(b => b.onclick = () => {
-    const f = b.dataset.filter;
-    setFilter(isNaN(f) ? f : +f);
-  });
+  $$('[data-filter]').forEach(b => b.onclick = () => setFilter(b.dataset.filter));
 }
 
 function renderStats() {
   const results = QUESTIONS.map(q => store.answers[q.id]).filter(r => r !== undefined);
   $('#answered').textContent = results.length;
-  $('#accuracy').textContent = results.length ? `${Math.round(results.filter(Boolean).length / results.length * 100)}%` : '--';
+  $('#accuracy').textContent = results.length ? `${pct(results.filter(Boolean).length, results.length)}%` : '--';
   $('#streak').textContent = practice.streak;
 }
 
@@ -145,18 +242,21 @@ function answersHtml(q, order, picked, reveal) {
     if (picked.includes(ai)) cls.push('selected');
     if (reveal && q.correct.includes(ai)) cls.push('correct');
     if (reveal && picked.includes(ai) && !q.correct.includes(ai)) cls.push('incorrect');
-    return `<button class="${cls.join(' ')}" data-answer="${ai}" ${reveal ? 'disabled' : ''}><b>${letter(pos)}</b><span>${esc(q.a[ai])}</span></button>`;
+    return `<button type="button" class="${cls.join(' ')}" data-answer="${ai}" ${reveal ? 'disabled' : ''}><b>${letter(pos)}</b><span>${txt(q.a[ai])}</span></button>`;
   }).join('');
 }
+const expectedLetters = (q, order) => order.map((ai, pos) => q.correct.includes(ai) ? letter(pos) : null).filter(Boolean).join(', ');
+const objectiveLabel = q => `${esc(q.o)} · ${esc(objectiveOf(q.o).title)}`;
 
 function renderPractice() {
   const { list, index } = practice;
   const card = $('#quiz-card');
   if (!list.length) {
-    card.innerHTML = `<div class="empty"><h2>${practice.filter === 'review' ? 'Aucune erreur à revoir 🎉' : 'Aucune question ici'}</h2>
-      <p>${practice.filter === 'review' ? 'Toutes tes réponses enregistrées sont correctes. Continue avec de nouvelles questions.' : 'Choisis un autre filtre.'}</p>
-      <button class="next" data-filter-go="new">Questions jamais répondues →</button></div>`;
-    $('[data-filter-go]').onclick = () => setFilter('new');
+    const review = practice.filter === 'review';
+    card.innerHTML = `<div class="empty"><h2>${review ? 'Aucune erreur à revoir 🎉' : 'Aucune question ici'}</h2>
+      <p>${review ? 'Bravo : toutes tes réponses enregistrées sont justes. Continue avec de nouvelles questions.' : 'Choisis un autre filtre.'}</p>
+      <button type="button" class="next" id="go-new">Questions jamais répondues →</button></div>`;
+    $('#go-new').onclick = () => setFilter('new');
     return;
   }
   const q = list[index];
@@ -169,22 +269,20 @@ function renderPractice() {
     <div class="quiz-top"><small>QUESTION ${pad(index + 1)} / ${pad(list.length)}</small><b>DOMAINE ${q.d}</b></div>
     <div class="track"><i style="width:${(index + 1) / list.length * 100}%"></i></div>
     <div class="question">
-      <label>${domainOf(q.d).name}</label>
-      <h2>${esc(q.q)}</h2>
+      <label>OBJECTIF ${objectiveLabel(q)}</label>
+      <h2>${txt(q.q)}</h2>
       ${q.multi && !done ? `<p class="hint">Plusieurs réponses attendues : sélectionne ${q.correct.length} réponses puis valide.</p>` : ''}
       <div>${answersHtml(q, order, picked, !!done)}</div>
       ${done ? `<div class="feedback ${ok ? '' : 'wrong'}"><strong>${ok ? 'Bonne réponse' : 'À revoir'}</strong>
-        ${ok ? '' : `<p class="solution">Réponse attendue : ${order.map((ai, pos) => q.correct.includes(ai) ? letter(pos) : null).filter(Boolean).join(', ')}</p>`}
-        <p>${esc(q.e)}</p></div>` : ''}
+        <p class="solution">Réponse${q.multi ? 's' : ''} attendue${q.multi ? 's' : ''} : ${expectedLetters(q, order)}</p>
+        <p>${txt(q.e)}</p></div>` : ''}
     </div>
     <footer>
-      <small>${done ? 'Touche Entrée pour continuer' : q.multi ? `${practice.picked.length} / ${q.correct.length} sélectionnée(s)` : 'Choisis une réponse (touches A à E)'}</small>
-      <button class="next" id="next" ${!done && (!q.multi || practice.picked.length !== q.correct.length) ? 'disabled' : ''}>${done ? 'Question suivante →' : 'Valider la réponse'}</button>
+      <small>${done ? 'Touche Entrée pour continuer' : q.multi ? `${practice.picked.length} / ${q.correct.length} sélectionnée(s)` : 'Choisis une réponse (touches A à D)'}</small>
+      <button type="button" class="next" id="next" ${!done && (!q.multi || practice.picked.length !== q.correct.length) ? 'disabled' : ''}>${done ? 'Question suivante →' : 'Valider la réponse'}</button>
     </footer>`;
 
-  if (!done) {
-    $$('#quiz-card [data-answer]').forEach(b => b.onclick = () => pickPractice(+b.dataset.answer));
-  }
+  if (!done) $$('#quiz-card [data-answer]').forEach(b => b.onclick = () => pickPractice(+b.dataset.answer));
   $('#next').onclick = () => done ? nextPractice() : submitPractice();
 }
 
@@ -216,7 +314,7 @@ function submitPractice() {
 function nextPractice() {
   practice.index++;
   if (practice.index >= practice.list.length) {
-    // Fin de la série : on repart sur une liste recalculée (utile pour « Erreurs à revoir »).
+    // Fin de la série : liste recalculée et mélangée (utile pour « Erreurs à revoir »).
     setFilter(practice.filter);
     return;
   }
@@ -226,6 +324,7 @@ function nextPractice() {
 
 // ── Examen blanc ─────────────────────────────────────────────────────────────
 let exam = null;
+const formatMark = n => n.toFixed(1).replace('.', ',');
 
 function startExam() {
   const drawn = DOMAINS.flatMap(d => shuffle(QUESTIONS.filter(q => q.d === d.id)).slice(0, d.examCount));
@@ -254,15 +353,14 @@ function finishExam() {
   const byDomain = Object.fromEntries(DOMAINS.map(d => [d.id, { ok: 0, total: 0 }]));
   let ok = 0;
   exam.items.forEach(it => {
-    const right = isRight(it.q, it.picked);
-    it.right = right;
+    it.right = isRight(it.q, it.picked);
     byDomain[it.q.d].total++;
-    if (right) { ok++; byDomain[it.q.d].ok++; }
-    if (it.picked.length) store.answers[it.q.id] = right;
+    if (it.right) { ok++; byDomain[it.q.d].ok++; }
+    if (it.picked.length) store.answers[it.q.id] = it.right;
   });
-  // Score estimé sur l'échelle officielle 100–1000 (AWS utilise une pondération non publiée).
-  const score = Math.round(100 + 900 * ok / exam.items.length);
-  exam.result = { ok, total: exam.items.length, score, passed: score >= PASS_SCORE, byDomain };
+  // Note estimée : règle linéaire sur 20, sans points négatifs (le barème réel dépend de la faculté).
+  const score = Math.round(200 * ok / exam.items.length) / 10;
+  exam.result = { ok, total: exam.items.length, score, passed: score >= PASS_MARK, byDomain };
   store.exams = [{ date: Date.now(), ...exam.result }, ...store.exams].slice(0, 20);
   save();
   renderStats();
@@ -281,26 +379,26 @@ function renderExam() {
   root.innerHTML = `<div class="exam-layout">
     <article class="quiz-card">
       <div class="quiz-top"><small>QUESTION ${pad(exam.current + 1)} / ${pad(exam.items.length)}</small>
-        <button class="flag ${it.flagged ? 'on' : ''}" id="flag">⚑ ${it.flagged ? 'Marquée pour révision' : 'Marquer pour révision'}</button></div>
+        <button type="button" class="flag ${it.flagged ? 'on' : ''}" id="flag">⚑ ${it.flagged ? 'Marquée pour révision' : 'Marquer pour révision'}</button></div>
       <div class="track"><i style="width:${(exam.current + 1) / exam.items.length * 100}%"></i></div>
       <div class="question">
-        <h2>${esc(q.q)}</h2>
+        <h2>${txt(q.q)}</h2>
         ${q.multi ? `<p class="hint">Sélectionne ${q.correct.length} réponses.</p>` : ''}
         <div>${answersHtml(q, it.order, it.picked, false)}</div>
       </div>
       <footer class="exam-footer">
-        <button class="ghost" id="prev" ${exam.current === 0 ? 'disabled' : ''}>← Précédente</button>
-        <button class="next" id="exam-next">${exam.current === exam.items.length - 1 ? 'Terminer l’examen' : 'Suivante →'}</button>
+        <button type="button" class="ghost" id="prev" ${exam.current === 0 ? 'disabled' : ''}>← Précédente</button>
+        <button type="button" class="next" id="exam-next">${exam.current === exam.items.length - 1 ? 'Terminer l’examen' : 'Suivante →'}</button>
       </footer>
     </article>
     <aside class="exam-side">
       <div class="timer-box"><small>Temps restant</small><strong id="timer">--:--</strong></div>
       <p class="exam-progress">${answeredCount} / ${exam.items.length} répondues</p>
       <div class="exam-grid">${exam.items.map((x, i) =>
-        `<button class="${x.picked.length ? 'done' : ''} ${x.flagged ? 'flagged' : ''} ${i === exam.current ? 'current' : ''}" data-goto="${i}">${i + 1}</button>`
+        `<button type="button" class="${x.picked.length ? 'done' : ''} ${x.flagged ? 'flagged' : ''} ${i === exam.current ? 'current' : ''}" data-goto="${i}">${i + 1}</button>`
       ).join('')}</div>
-      <p class="legend"><i class="l-done"></i>Répondue <i class="l-flag"></i>Marquée</p>
-      <button class="finish" id="finish">Terminer l’examen</button>
+      <p class="legend"><i class="l-done"></i>Répondue <i class="l-flag"></i>Marquée <i class="l-current"></i>En cours</p>
+      <button type="button" class="finish" id="finish">Terminer l’examen</button>
     </aside>
   </div>`;
   tickExam();
@@ -322,23 +420,24 @@ function renderExam() {
 function confirmFinish() {
   const missing = exam.items.filter(x => x.picked.length < x.q.correct.length).length;
   const flagged = exam.items.filter(x => x.flagged).length;
-  const warn = [missing && `${missing} question(s) sans réponse complète`, flagged && `${flagged} question(s) marquée(s)`].filter(Boolean).join(' et ');
+  const warn = [missing && `${missing} question(s) sans réponse complète`, flagged && `${flagged} question(s) marquée(s) pour révision`].filter(Boolean).join(' et ');
   if (confirm(warn ? `Il reste ${warn}. Terminer quand même ?` : 'Terminer l’examen et voir le résultat ?')) finishExam();
 }
 
 function renderExamIntro(root) {
   root.innerHTML = `<div class="exam-intro">
     <div class="intro-card">
-      <label>SIMULATION CLF-C02</label>
-      <h2>Examen blanc en conditions réelles</h2>
+      <label>SIMULATION D’ÉPREUVE</label>
+      <h2>Examen blanc chronométré</h2>
       <ul>
-        <li><b>${DOMAINS.reduce((n, d) => n + d.examCount, 0)} questions</b> tirées au hasard dans la banque de ${QUESTIONS.length} questions</li>
-        <li><b>${EXAM_MINUTES} minutes</b> avec chronomètre</li>
-        <li>Répartition selon la pondération officielle : ${DOMAINS.map(d => `D${d.id} ${d.weight} %`).join(' · ')}</li>
-        <li>Correction uniquement à la fin, comme le jour J</li>
-        <li>Score estimé sur 1000 — il faut <b>${PASS_SCORE}</b> pour réussir</li>
+        <li><b>${examSize} QCM</b> tirés au hasard dans la banque de ${QUESTIONS.length} questions</li>
+        <li><b>${EXAM_MINUTES} minutes</b> avec chronomètre ; l’examen se termine automatiquement à zéro</li>
+        <li>Répartition selon la pondération du programme : ${DOMAINS.map(d => `D${d.id} ${d.examCount} q.`).join(' · ')}</li>
+        <li>Correction uniquement à la fin</li>
+        <li>Note estimée sur 20 (1 point par bonne réponse, sans points négatifs) ; seuil indicatif <b>${PASS_MARK}/20</b></li>
       </ul>
-      <button class="next" id="start-exam">Commencer l’examen →</button>
+      <p class="muted">Ce format est une simulation interne. Le nombre de questions, la durée et le barème réels dépendent de ta faculté : réfère-toi à ses modalités officielles.</p>
+      <button type="button" class="next" id="start-exam">Commencer l’examen →</button>
     </div>
     ${historyHtml()}
   </div>`;
@@ -348,75 +447,91 @@ function renderExamIntro(root) {
 function renderExamResult(root) {
   const r = exam.result;
   const wrong = exam.items.filter(x => !x.right);
+  const missedObjectives = [...new Set(wrong.map(x => x.q.o))].sort((a, b) => a.localeCompare(b, 'fr', { numeric: true }));
   root.innerHTML = `<div class="result">
     <div class="result-head ${r.passed ? 'pass' : 'fail'}">
-      <div><label>${r.passed ? 'RÉUSSI' : 'NON RÉUSSI'}</label><strong>${r.score}<small> / 1000</small></strong>
-      <p>${r.ok} bonne(s) réponse(s) sur ${r.total} · seuil de réussite ${PASS_SCORE}</p></div>
-      <div class="result-actions"><button class="next" id="restart">Nouvel examen</button>
-      ${wrong.length ? '<button class="ghost" id="to-review">Revoir mes erreurs en entraînement</button>' : ''}</div>
+      <div><label>${r.passed ? 'RÉUSSI' : 'NON RÉUSSI'}</label><strong>${formatMark(r.score)}<small> / 20</small></strong>
+      <p>${r.ok} bonne(s) réponse(s) sur ${r.total} · note estimée, seuil indicatif ${PASS_MARK}/20</p></div>
+      <div class="result-actions"><button type="button" class="next" id="restart">Nouvel examen</button>
+      ${wrong.length ? '<button type="button" class="ghost" id="to-review">Revoir mes erreurs en entraînement</button>' : ''}</div>
     </div>
     <h3 class="sub">Résultats par domaine</h3>
     ${domainBars(r.byDomain)}
+    ${missedObjectives.length ? `<h3 class="sub">Objectifs à retravailler (${missedObjectives.length})</h3>
+      <ul class="missed">${missedObjectives.map(id => {
+        const first = coursesFor(id)[0];
+        return `<li><b>${esc(id)}</b> ${esc(objectiveOf(id).title)}
+          ${first ? `<button type="button" class="link" data-open-course="${first.i}">Revoir le cours « ${esc(first.c.title)} » →</button>` : ''}</li>`;
+      }).join('')}</ul>` : ''}
     <h3 class="sub">Corrections (${wrong.length})</h3>
     <div class="corrections">${wrong.map(x => `<details>
-      <summary><span class="dom">D${x.q.d}</span>${esc(x.q.q)}</summary>
-      <div>${answersHtml(x.q, x.order, x.picked, true)}<p class="explain">${esc(x.q.e)}</p></div>
+      <summary><span class="dom">${esc(x.q.o)}</span>${txt(x.q.q)}</summary>
+      <div><p class="muted">Objectif ${objectiveLabel(x.q)} · ${x.picked.length ? `ta réponse : ${x.order.map((ai, pos) => x.picked.includes(ai) ? letter(pos) : null).filter(Boolean).join(', ')}` : 'sans réponse'} · attendu : ${expectedLetters(x.q, x.order)}</p>
+      ${answersHtml(x.q, x.order, x.picked, true)}<p class="explain">${txt(x.q.e)}</p></div>
     </details>`).join('') || '<p class="muted">Aucune erreur, bravo !</p>'}</div>
   </div>`;
   $('#restart').onclick = () => { exam = null; renderExam(); };
   const review = $('#to-review');
-  if (review) review.onclick = () => { exam = null; renderExam(); setFilter('review'); showView('quiz'); };
+  if (review) review.onclick = () => { exam = null; renderExam(); goToPractice('review'); };
 }
 
 function domainBars(byDomain) {
   return `<div class="bars">${DOMAINS.map(d => {
     const { ok, total } = byDomain[d.id];
-    const pct = total ? Math.round(ok / total * 100) : 0;
-    return `<div class="bar-row"><span>${d.id}. ${d.name}</span>
-      <div class="bar ${pct >= 70 ? 'good' : 'weak'}"><i style="width:${pct}%"></i></div>
-      <b>${total ? `${pct} %` : '--'}</b><small>${ok}/${total}</small></div>`;
+    const p = pct(ok, total);
+    return `<div class="bar-row"><span>${d.id}. ${esc(d.name)}</span>
+      <div class="bar ${p >= 70 ? 'good' : 'weak'}"><i style="width:${p}%"></i></div>
+      <b>${total ? `${p} %` : '--'}</b><small>${ok}/${total}</small></div>`;
   }).join('')}</div>`;
 }
 
 function historyHtml() {
   if (!store.exams.length) return '';
   return `<div class="history"><h3 class="sub">Derniers examens</h3>
-    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Score</th><th>Bonnes réponses</th><th>Résultat</th></tr></thead><tbody>
+    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Note</th><th>Bonnes réponses</th><th>Résultat</th></tr></thead><tbody>
     ${store.exams.map(x => `<tr><td>${new Date(x.date).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}</td>
-      <td><b>${x.score}</b></td><td>${x.ok}/${x.total}</td>
-      <td><span class="badge ${x.passed ? 'pass' : 'fail'}">${x.passed ? 'Réussi' : 'Échec'}</span></td></tr>`).join('')}
+      <td><b>${formatMark(x.score)}/20</b></td><td>${x.ok}/${x.total}</td>
+      <td><span class="badge ${x.passed ? 'pass' : 'fail'}">${x.passed ? 'Réussi' : 'Non réussi'}</span></td></tr>`).join('')}
     </tbody></table></div></div>`;
 }
 
 // ── Progression ──────────────────────────────────────────────────────────────
 function renderProgress() {
   const byDomain = Object.fromEntries(DOMAINS.map(d => {
-    const qs = QUESTIONS.filter(q => q.d === d.id);
-    const results = qs.map(q => store.answers[q.id]).filter(r => r !== undefined);
-    return [d.id, { ok: results.filter(Boolean).length, total: results.length, pool: qs.length }];
+    const results = QUESTIONS.filter(q => q.d === d.id).map(q => store.answers[q.id]).filter(r => r !== undefined);
+    return [d.id, { ok: results.filter(Boolean).length, total: results.length }];
   }));
-  const tried = DOMAINS.filter(d => byDomain[d.id].total);
-  const weakest = tried.sort((a, b) => byDomain[a.id].ok / byDomain[a.id].total - byDomain[b.id].ok / byDomain[b.id].total)[0];
+  const stats = OBJECTIVES.map(o => ({ o, ...objectiveStats(o.id) }));
+  const mastered = stats.filter(s => s.status === 'mastered').length;
+  const seen = Object.values(byDomain).reduce((n, x) => n + x.total, 0);
   const best = store.exams.length ? Math.max(...store.exams.map(x => x.score)) : null;
+  const weakest = stats.filter(s => s.seen && s.status !== 'mastered').sort((a, b) => a.ok / a.seen - b.ok / b.seen).slice(0, 3);
+  const untouched = stats.filter(s => s.status === 'new').slice(0, 3);
+  const priority = [...weakest, ...untouched];
 
   $('#progress-root').innerHTML = `
-    <div class="stats">
-      <div><small>Cours lus</small><strong>${Object.keys(store.read).length}/${COURSES.length}</strong><span>modules</span></div>
-      <div><small>Questions vues</small><strong>${Object.values(byDomain).reduce((n, x) => n + x.total, 0)}/${QUESTIONS.length}</strong><span>dans la banque</span></div>
-      <div class="lime"><small>Meilleur examen blanc</small><strong>${best ?? '--'}</strong><span>${best === null ? 'aucun examen passé' : best >= PASS_SCORE ? 'au-dessus du seuil' : `objectif ${PASS_SCORE}`}</span></div>
+    <div class="stats four">
+      <div><small>Objectifs maîtrisés</small><strong>${mastered}/${OBJECTIVES.length}</strong><span>du programme</span></div>
+      <div><small>Cours lus</small><strong>${readCount()}/${COURSES.length}</strong><span>modules</span></div>
+      <div><small>Questions vues</small><strong>${seen}/${QUESTIONS.length}</strong><span>dans la banque</span></div>
+      <div class="vivid"><small>Meilleur examen blanc</small><strong>${best === null ? '--' : formatMark(best)}</strong><span>${best === null ? 'aucun examen passé' : 'sur 20'}</span></div>
     </div>
     <h3 class="sub">Précision par domaine (entraînement et examens)</h3>
     ${domainBars(byDomain)}
-    ${weakest ? `<p class="tip"><b>i</b><span><strong>Priorité de révision</strong><br>Ton domaine le plus faible est « ${weakest.name} ».
-      <button class="link" id="train-weak">S’entraîner dessus →</button></span></p>` : '<p class="muted">Réponds à quelques questions pour voir ta progression par domaine.</p>'}
+    <div class="priority">
+      <h3 class="sub">Priorité de révision</h3>
+      ${priority.length ? `<ul>${priority.map(s => `<li>
+        <span><b>${esc(s.o.id)}</b> ${esc(s.o.title)}
+          <small>${s.seen ? `${pct(s.ok, s.seen)} % sur ${s.seen} question(s)` : 'jamais abordé'}</small></span>
+        <button type="button" class="ghost small" data-train="o:${esc(s.o.id)}">S’entraîner →</button></li>`).join('')}</ul>`
+        : '<p class="muted">Tous les objectifs sont maîtrisés. Passe un examen blanc pour le confirmer !</p>'}
+    </div>
     ${historyHtml()}`;
-  const weak = $('#train-weak');
-  if (weak) weak.onclick = () => { setFilter(weakest.id); showView('quiz'); };
 }
 
 // ── Raccourcis clavier ───────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
-  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.ctrlKey || e.metaKey || e.altKey || e.target.matches('input, textarea')) return;
   const view = $$('.view:not(.hidden)')[0]?.id;
   const scope = view === 'quiz-view' ? '#quiz-card' : view === 'exam-view' ? '#exam-root .question' : null;
   if (!scope) return;
@@ -434,18 +549,20 @@ window.addEventListener('beforeunload', e => {
 });
 
 $('#reset').onclick = () => {
-  if (!confirm('Effacer toute la progression (réponses, cours lus, examens) ?')) return;
+  if (!confirm('Effacer toute la progression (réponses, cours lus, objectifs cochés, examens) ?')) return;
+  if (exam) clearInterval(exam.timer);
+  exam = null;
   store = emptyStore();
   save();
   practice.streak = 0;
   setFilter('all');
   renderStats();
-  renderCourses();
-  renderProgress();
   renderExam();
+  showView($('.tab.active').dataset.view);
 };
 
-renderCourses();
+$('#exam-summary').textContent = `${examSize} QCM · ${EXAM_MINUTES} minutes · note sur 20`;
+renderProgramme();
 setFilter('all');
 renderStats();
 renderExam();
