@@ -4,7 +4,7 @@ Cours, QCM corrigés et examens blancs en français pour préparer l’UE de mat
 
 ## Utilisation
 
-Ouvrir `index.html` dans un navigateur (double-clic, fonctionne en `file://`). Aucun build ni dépendance. La progression est enregistrée dans le stockage local du navigateur (clé `pass-maths-biostats-v1`) ; l’application fonctionne aussi sans stockage.
+Ouvrir `index.html` dans un navigateur (double-clic, fonctionne en `file://` et hors ligne). Aucun build. Les formules mathématiques sont rendues par [KaTeX](https://katex.org) 0.16, fourni dans `vendor/katex/` (licence MIT) pour fonctionner sans connexion. La progression est enregistrée dans le stockage local du navigateur (clé `pass-maths-biostats-v1`) ; l’application fonctionne aussi sans stockage.
 
 - **Programme** : les 50 objectifs par domaine, avec leurs notions, les cours associés, un état (« À découvrir », « En cours », « Maîtrisé »), la précision obtenue et un bouton « S’entraîner ». La case « Je maîtrise » permet de marquer un objectif révisé en autonomie.
 - **Cours** : 28 modules regroupés par domaine, avec les objectifs traités et un badge « LU ».
@@ -106,4 +106,15 @@ Tout le contenu se trouve dans `data/`, chargé par des balises `<script>` avant
 
 Le domaine `d` d’un cours ou d’une question doit être celui de ses objectifs. L’ordre des réponses est mélangé à l’affichage. La progression est associée au texte de l’énoncé : modifier un énoncé réinitialise la progression de cette question.
 
-Notation : une lettre suivie de la barre de combinaison U+0304 (M̄, B̄, x̄) est affichée avec un surlignement CSS, car les polices web placent mal ce caractère.
+### Formules mathématiques
+
+Les formules s’écrivent en LaTeX entre `\\(` et `\\)` dans les chaînes JavaScript (la barre oblique inverse est doublée) :
+
+```js
+{ d: 4, o: "4.2", q: "Que vaut \\(P(A \\mid B)\\) si \\(P(A \\cap B) = 0{,}12\\) ?", … }
+```
+
+- Virgule décimale : `0{,}5` (sans les accolades, LaTeX ajoute une espace après la virgule).
+- Événement contraire : `\\overline{A}` ; moyenne : `\\bar{x}` ; test positif : `T^+`.
+- Pourcentage dans une formule : `5\\,\\%`. Les nombres et pourcentages isolés restent en texte courant.
+- Le rendu se fait après chaque affichage (fonction `math()` de `app.js`) ; une formule invalide s’affiche en rouge au lieu de bloquer la page.

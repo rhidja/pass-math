@@ -7,9 +7,11 @@ const MASTERY_RATE = 0.8;
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
-// Les polices web placent mal la barre de combinaison (M̄, B̄, x̄) : on la remplace par un surlignement CSS.
-const bars = html => html.replace(/(\p{L})\u0304/gu, '<span class="overbar">$1</span>');
-const txt = s => bars(esc(s));
+// Rendu des formules LaTeX écrites entre \( … \) dans les données (KaTeX, fourni dans vendor/).
+function math(el) {
+  if (!el || typeof renderMathInElement !== 'function') return;
+  renderMathInElement(el, { delimiters: [{ left: '\\(', right: '\\)', display: false }], throwOnError: false });
+}
 const pad = n => String(n).padStart(2, '0');
 const letter = i => String.fromCharCode(65 + i);
 const pct = (ok, total) => total ? Math.round(ok / total * 100) : 0;
@@ -108,6 +110,7 @@ function renderProgramme() {
       <div class="domain-head"><span>DOMAINE ${d.id}</span><h3>${esc(d.name)}</h3><small>${d.weight} % du programme</small></div>
       <div class="objectives">${OBJECTIVES.filter(o => o.d === d.id).map(objectiveHtml).join('')}</div>
     </div>`).join('')}`;
+  math($('#programme-root'));
   $$('[data-master]').forEach(box => box.onchange = () => {
     if (box.checked) store.mastered[box.dataset.master] = true;
     else delete store.mastered[box.dataset.master];
@@ -124,7 +127,7 @@ function objectiveHtml(o) {
       <h4>${esc(o.title)}</h4>
       <span class="pill ${s.status}">${STATUS_LABEL[s.status]}</span>
     </div>
-    <ul class="notions">${o.notions.map(n => `<li>${txt(n)}</li>`).join('')}</ul>
+    <ul class="notions">${o.notions.map(n => `<li>${esc(n)}</li>`).join('')}</ul>
     <div class="objective-foot">
       <span class="modules">Cours : ${coursesFor(o.id).map(({ c, i }) =>
         `<button class="link" type="button" data-open-course="${i}">${pad(i + 1)}. ${esc(c.title)}</button>`).join(' ')}</span>
@@ -149,7 +152,7 @@ function renderCourses() {
       <div class="course-grid">${items.map(({ c, i }) => `
         <article class="course ${isRead(i) ? 'read' : ''}">
           <span class="index">${pad(i + 1)}${isRead(i) ? ' <em class="badge-read">LU ✓</em>' : ''}</span>
-          <h3>${bars(c.title)}</h3><p>${bars(c.summary)}</p>
+          <h3>${(c.title)}</h3><p>${(c.summary)}</p>
           <span class="objs">${c.o.join(' · ')}</span>
           <button type="button" data-course="${i}">Lire le cours →</button>
         </article>`).join('')}
@@ -157,6 +160,7 @@ function renderCourses() {
     </div>`;
   }).join('');
   $$('[data-course]').forEach(b => b.onclick = () => openCourse(+b.dataset.course));
+  math($('#course-list'));
 }
 
 function openCourse(i) {
@@ -167,14 +171,14 @@ function openCourse(i) {
   const next = COURSES[i + 1];
   $('#course-list').innerHTML = `<article class="lesson">
     <span class="index">${pad(i + 1)} / DOMAINE ${c.d} · ${esc(domainOf(c.d).name.toUpperCase())}</span>
-    <h3>${bars(c.title)}</h3>
-    <p class="lead">${bars(c.summary)}</p>
+    <h3>${(c.title)}</h3>
+    <p class="lead">${(c.summary)}</p>
     <div class="covers"><strong>Objectifs du programme couverts</strong>
       <ul>${c.o.map(id => `<li><b>${esc(id)}</b> ${esc(objectiveOf(id).title)}</li>`).join('')}</ul></div>
     ${c.sections.map(s => `<section class="${s.extra ? 'extra' : ''}">
-      <h4>${bars(s.h)}${s.extra ? ' <span class="tag">Complément · hors programme</span>' : ''}</h4>
-      ${s.p ? `<p>${bars(s.p)}</p>` : ''}
-      ${s.points ? `<ul>${s.points.map(p => `<li>${bars(p)}</li>`).join('')}</ul>` : ''}
+      <h4>${(s.h)}${s.extra ? ' <span class="tag">Complément · hors programme</span>' : ''}</h4>
+      ${s.p ? `<p>${(s.p)}</p>` : ''}
+      ${s.points ? `<ul>${s.points.map(p => `<li>${(p)}</li>`).join('')}</ul>` : ''}
     </section>`).join('')}
     <div class="lesson-nav">
       <button class="back" type="button">← Tous les cours</button>
@@ -182,6 +186,7 @@ function openCourse(i) {
       ${next ? `<button class="next" type="button" data-course="${i + 1}">Module suivant : ${next.title} →</button>` : ''}
     </div>
   </article>`;
+  math($('#course-list'));
   $('.lesson .back').onclick = renderCourses;
   $$('.lesson [data-course]').forEach(b => b.onclick = () => openCourse(+b.dataset.course));
   $('#courses-view').scrollIntoView({ behavior: 'smooth' });
@@ -242,7 +247,7 @@ function answersHtml(q, order, picked, reveal) {
     if (picked.includes(ai)) cls.push('selected');
     if (reveal && q.correct.includes(ai)) cls.push('correct');
     if (reveal && picked.includes(ai) && !q.correct.includes(ai)) cls.push('incorrect');
-    return `<button type="button" class="${cls.join(' ')}" data-answer="${ai}" ${reveal ? 'disabled' : ''}><b>${letter(pos)}</b><span>${txt(q.a[ai])}</span></button>`;
+    return `<button type="button" class="${cls.join(' ')}" data-answer="${ai}" ${reveal ? 'disabled' : ''}><b>${letter(pos)}</b><span>${esc(q.a[ai])}</span></button>`;
   }).join('');
 }
 const expectedLetters = (q, order) => order.map((ai, pos) => q.correct.includes(ai) ? letter(pos) : null).filter(Boolean).join(', ');
@@ -270,18 +275,19 @@ function renderPractice() {
     <div class="track"><i style="width:${(index + 1) / list.length * 100}%"></i></div>
     <div class="question">
       <label>OBJECTIF ${objectiveLabel(q)}</label>
-      <h2>${txt(q.q)}</h2>
+      <h2>${esc(q.q)}</h2>
       ${q.multi && !done ? `<p class="hint">Plusieurs réponses attendues : sélectionne ${q.correct.length} réponses puis valide.</p>` : ''}
       <div>${answersHtml(q, order, picked, !!done)}</div>
       ${done ? `<div class="feedback ${ok ? '' : 'wrong'}"><strong>${ok ? 'Bonne réponse' : 'À revoir'}</strong>
         <p class="solution">Réponse${q.multi ? 's' : ''} attendue${q.multi ? 's' : ''} : ${expectedLetters(q, order)}</p>
-        <p>${txt(q.e)}</p></div>` : ''}
+        <p>${esc(q.e)}</p></div>` : ''}
     </div>
     <footer>
       <small>${done ? 'Touche Entrée pour continuer' : q.multi ? `${practice.picked.length} / ${q.correct.length} sélectionnée(s)` : 'Choisis une réponse (touches A à D)'}</small>
       <button type="button" class="next" id="next" ${!done && (!q.multi || practice.picked.length !== q.correct.length) ? 'disabled' : ''}>${done ? 'Question suivante →' : 'Valider la réponse'}</button>
     </footer>`;
 
+  math(card);
   if (!done) $$('#quiz-card [data-answer]').forEach(b => b.onclick = () => pickPractice(+b.dataset.answer));
   $('#next').onclick = () => done ? nextPractice() : submitPractice();
 }
@@ -382,7 +388,7 @@ function renderExam() {
         <button type="button" class="flag ${it.flagged ? 'on' : ''}" id="flag">⚑ ${it.flagged ? 'Marquée pour révision' : 'Marquer pour révision'}</button></div>
       <div class="track"><i style="width:${(exam.current + 1) / exam.items.length * 100}%"></i></div>
       <div class="question">
-        <h2>${txt(q.q)}</h2>
+        <h2>${esc(q.q)}</h2>
         ${q.multi ? `<p class="hint">Sélectionne ${q.correct.length} réponses.</p>` : ''}
         <div>${answersHtml(q, it.order, it.picked, false)}</div>
       </div>
@@ -401,6 +407,7 @@ function renderExam() {
       <button type="button" class="finish" id="finish">Terminer l’examen</button>
     </aside>
   </div>`;
+  math(root);
   tickExam();
 
   $$('#exam-root [data-answer]').forEach(b => b.onclick = () => {
@@ -465,11 +472,12 @@ function renderExamResult(root) {
       }).join('')}</ul>` : ''}
     <h3 class="sub">Corrections (${wrong.length})</h3>
     <div class="corrections">${wrong.map(x => `<details>
-      <summary><span class="dom">${esc(x.q.o)}</span>${txt(x.q.q)}</summary>
+      <summary><span class="dom">${esc(x.q.o)}</span><span>${esc(x.q.q)}</span></summary>
       <div><p class="muted">Objectif ${objectiveLabel(x.q)} · ${x.picked.length ? `ta réponse : ${x.order.map((ai, pos) => x.picked.includes(ai) ? letter(pos) : null).filter(Boolean).join(', ')}` : 'sans réponse'} · attendu : ${expectedLetters(x.q, x.order)}</p>
-      ${answersHtml(x.q, x.order, x.picked, true)}<p class="explain">${txt(x.q.e)}</p></div>
+      ${answersHtml(x.q, x.order, x.picked, true)}<p class="explain">${esc(x.q.e)}</p></div>
     </details>`).join('') || '<p class="muted">Aucune erreur, bravo !</p>'}</div>
   </div>`;
+  math(root);
   $('#restart').onclick = () => { exam = null; renderExam(); };
   const review = $('#to-review');
   if (review) review.onclick = () => { exam = null; renderExam(); goToPractice('review'); };
@@ -527,6 +535,7 @@ function renderProgress() {
         : '<p class="muted">Tous les objectifs sont maîtrisés. Passe un examen blanc pour le confirmer !</p>'}
     </div>
     ${historyHtml()}`;
+  math($('#progress-root'));
 }
 
 // ── Raccourcis clavier ───────────────────────────────────────────────────────

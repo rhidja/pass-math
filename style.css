@@ -326,5 +326,8 @@ tr:last-child td { border-bottom: 0; }
   .priority li { flex-direction: column; align-items: flex-start; }
 }
 
-/* Barre de notation (M̄, x̄) dessinée en CSS : indépendante de la police. */
-.overbar { text-decoration: overline; text-decoration-thickness: .07em; text-underline-offset: 0; }
+
+/* Formules LaTeX (KaTeX) */
+.katex { font-size: 1.08em; }
+.question h2 .katex { font-size: 1em; }
+.katex-display { overflow-x: auto; overflow-y: hidden; }
